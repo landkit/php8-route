@@ -57,9 +57,9 @@ class Route
     private static ?array $middleware = [];
 
     /**
-     * @var array|null
+     * @var array
      */
-    private static ?array $data = null;
+    private static array $data = [];
 
     /**
      * @var int|null
@@ -309,9 +309,9 @@ class Route
     }
 
     /**
-     * @return array|null
+     * @return array
      */
-    public static function data(): ?array
+    public static function data(): array
     {
         return self::$data;
     }
@@ -369,10 +369,11 @@ class Route
 
         self::formSpoofing();
 
+        $routeParams = [];
         $offset = 0;
 
         foreach ($keys as $key) {
-            self::$data[$key[1]] = $routeDiff[$offset++] ?? null;
+            $routeParams[$key[1]] = $routeDiff[$offset++] ?? null;
         }
 
         $route = !self::$session ? $route : '/' . self::$session . $route;
@@ -380,7 +381,7 @@ class Route
         $controller = self::$controller;
         $middleware = is_string($middleware) ? [$middleware] : $middleware;
 
-        $router = function () use ($method, $handler, $data, $route, $name, $controller, $middleware) {
+        $router = function () use ($method, $handler, $data, $route, $name, $controller, $middleware, $routeParams) {
             return [
                 'route' => $route,
                 'name' => $name,
@@ -388,7 +389,11 @@ class Route
                 'middlewares' => array_merge(self::$middleware, $middleware),
                 'handler' => self::handler($handler, $controller),
                 'action' => self::action($handler),
-                'data' => $data
+                'data' => $data,
+                'params' => [
+                    'route' => $routeParams,
+                    'query' => self::queryParams()
+                ]
             ];
         };
 
@@ -397,13 +402,12 @@ class Route
         self::$routes[$method][$route] = $router();
     }
 
-
     /**
      * @return void
      */
     private static function formSpoofing(): void
     {
-        $post = filter_input_array(INPUT_POST, FILTER_DEFAULT);
+        $post = filter_input_array(INPUT_POST, FILTER_DEFAULT) ?? [];
 
         if (!empty($post['_method']) && in_array($post['_method'], ['PUT', 'PATCH', 'DELETE'])) {
             self::$httpMethod = $post['_method'];
@@ -441,6 +445,16 @@ class Route
     }
 
     /**
+     * @return array
+     */
+    private static function queryParams(): array
+    {
+        $queryParams = str_replace('?', '', strstr($_SERVER['REQUEST_URI'], '?'));
+        parse_str($queryParams, $params);
+        return $params ?: [];
+    }
+
+    /**
      * @return void
      */
     private static function execute(): void
@@ -451,7 +465,8 @@ class Route
         }
 
         if (is_callable(self::$route['handler'])) {
-            call_user_func(self::$route['handler'], (self::$route['data'] ?? []), self::$instance);
+            call_user_func(self::$route['handler'], self::$route['data'], self::$instance);
+
             return;
         }
 
@@ -469,7 +484,7 @@ class Route
             return;
         }
 
-        (new $controller())->$method((self::$route['data'] ?? []));
+        (new $controller())->$method(self::$route['data']);
     }
 
     /**

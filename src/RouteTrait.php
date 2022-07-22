@@ -136,4 +136,29 @@ trait RouteTrait
     {
         return json_decode(file_get_contents('php://input'), true) ?? null;
     }
+
+    /**
+     * @return array
+     */
+    public static function getRouteParams(): array
+    {
+        return self::getParams('route');
+    }
+
+    /**
+     * @return array
+     */
+    public static function getQueryParams(): array
+    {
+        return self::getParams('query');
+    }
+
+    /**
+     * @param string $type
+     * @return array
+     */
+    private static function getParams(string $type): array
+    {
+        return self::$route ? self::$route['params'][$type] : [];
+    }
 }
